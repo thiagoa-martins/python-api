@@ -1,27 +1,45 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, blueprints
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+db = SQLAlchemy(app)
 
-users_list = {
-    1: { 'nome': 'Thiago', 'idade': 27 },
-    2: { 'nome': 'Maria', 'idade': 35 },
-    3: { 'nome': 'Alexsandra', 'idade': 28 }
-}
+with app.app_context():
+    db.create_all()
 
-@app.route('/users')
-def users():
-    return jsonify(users_list)
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    age = db.Column(db.Integer, nullable=False)
 
-@app.route('/user/<int:id>')
+@app.route('/user', methods=['POST'])
+def add_user():
+    dates = request.get_json()
+    new_user = User(name=dates['name'], age=dates['age'])
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({'mensagem': 'Usuario adicionado!'}),201
+
+@app.route('/users', methods=['GET'])
+def get_users():
+    users = User.query.all()
+    result = []
+    for user in users:
+        result.append({'id': user.id, 'name': user.name, 'age': user.age})
+    return jsonify(result)
+
+@app.route('/user/<int:id>', methods=['DELETE'])
 def user(id):
-    user = users_list.get(id)
+    user = db.session.get(User, id)
 
-    print(user)
+    if not user:
+        return jsonify({'erro': 'Usuario nao encontrado!'}), 404
 
-    if user:
-        return jsonify(user)
-    else:
-        return jsonify({ 'erro': 'Usuario nao encontrado!' }), 404
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({'mensagem': 'Usuario removido!'}),201
 
 if __name__ == '__main__':
     app.run(debug=True)
